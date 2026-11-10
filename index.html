@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("scoutTheme");
+      const theme =
+        param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --cp-bg: #f7f4ef;
+      --cp-bg-elevated: #fcfbf8;
+      --cp-surface: #ffffff;
+      --cp-surface-soft: #f5f5f5;
+      --cp-border: #dedede;
+      --cp-border-strong: #919191;
+      --cp-text: #242424;
+      --cp-text-muted: #5c5c5c;
+      --cp-text-soft: #6f6f6f;
+      --cp-accent: #b11f4b;
+      --cp-accent-hover: #9a1a41;
+      --cp-accent-soft: rgba(177, 31, 75, 0.08);
+      --cp-accent-fg: #ffffff;
+      --cp-success: #16a34a;
+      --cp-danger: #dc2626;
+      --cp-warning: #f59e0b;
+      --cp-link: #0078d4;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+      --cp-overlay: rgba(255, 255, 255, 0.8);
+      --cp-panel: rgba(255, 255, 255, 0.86);
+      --cp-panel-strong: rgba(255, 255, 255, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.55);
+      --cp-highlight: rgba(177, 31, 75, 0.12);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --cp-bg: #3d3b3a;
+      --cp-bg-elevated: #343231;
+      --cp-surface: #292929;
+      --cp-surface-soft: #2e2e2e;
+      --cp-border: #474747;
+      --cp-border-strong: #5f5f5f;
+      --cp-text: #dedede;
+      --cp-text-muted: #919191;
+      --cp-text-soft: #b0b0b0;
+      --cp-accent: #fd8ea1;
+      --cp-accent-hover: #fb7b91;
+      --cp-accent-soft: rgba(253, 142, 161, 0.14);
+      --cp-accent-fg: #1a1a1a;
+      --cp-success: #4ade80;
+      --cp-danger: #f87171;
+      --cp-warning: #fbbf24;
+      --cp-link: #4da6ff;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+      --cp-overlay: rgba(41, 41, 41, 0.88);
+      --cp-panel: rgba(41, 41, 41, 0.72);
+      --cp-panel-strong: rgba(41, 41, 41, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.04);
+      --cp-highlight: rgba(253, 142, 161, 0.12);
+    }
+  </style>
+  <title>广东安责险 · 监管运营演示</title>
+  <link rel="stylesheet" href="./styles.css?v=report-20261027" />
+  <script defer src="./data.js?v=report-20261027"></script>
+  <script defer src="./reports.js?v=report-20261027"></script>
+  <script defer src="./workflows.js?v=report-20261027"></script>
+  <script defer src="./guangdong.js?v=report-20261027"></script>
+  <script defer src="./guangdong-pages.js?v=report-20261027"></script>
+  <script defer src="./coordination.js?v=report-20261027"></script>
+  <script defer src="./coordination-pages.js?v=report-20261027"></script>
+  <script defer src="./platform.js?v=unified-20261110"></script>
+  <script defer src="./guide.js?v=guide-20261101"></script>
+  <script defer src="./guide-window.js?v=guide-20261102"></script>
+  <script defer src="./app.js?v=report-20261027"></script>
+</head>
+<body>
+  <div id="app" aria-live="polite"></div>
+  <div class="guide-widget" id="guideRoot">
+    <section class="guide-panel" id="guidePanel" aria-labelledby="guideTitle" hidden>
+      <header class="guide-header">
+        <div>
+          <strong id="guideTitle">演示使用说明</strong>
+          <span id="guideMode"></span>
+        </div>
+        <div class="guide-window-actions">
+          <button type="button" class="btn btn-quiet" data-guide-default aria-label="恢复说明窗口默认大小和位置" title="恢复默认大小和位置">恢复默认大小</button>
+          <button type="button" class="btn btn-icon" data-guide-size aria-label="最大化说明窗口" title="最大化">□</button>
+          <button type="button" class="btn btn-icon guide-close" data-action="toggleGuide" aria-label="收起使用说明" title="最小化到右下角">—</button>
+        </div>
+      </header>
+      <div class="guide-body" id="guideContent"></div>
+      <button type="button" class="guide-resize" data-guide-resize="n" aria-label="调整说明窗口上边缘：使用方向键"></button>
+      <button type="button" class="guide-resize" data-guide-resize="e" aria-label="调整说明窗口右边缘：使用方向键"></button>
+      <button type="button" class="guide-resize" data-guide-resize="s" aria-label="调整说明窗口下边缘：使用方向键"></button>
+      <button type="button" class="guide-resize" data-guide-resize="w" aria-label="调整说明窗口左边缘：使用方向键"></button>
+      <button type="button" class="guide-resize" data-guide-resize="se" aria-label="调整说明窗口右下角：使用方向键">◢</button>
+    </section>
+    <button type="button" class="btn btn-primary guide-launcher" data-action="toggleGuide" aria-controls="guidePanel" aria-expanded="false">
+      <span>使用说明</span><small class="guide-current-step"></small>
+    </button>
+  </div>
+  <div id="drawerRoot"></div>
+  <div id="modalRoot"></div>
+  <div id="toastRoot" class="toast-root" aria-live="assertive"></div>
+</body>
+</html>

@@ -1,0 +1,50 @@
+name: Deploy static demo to Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/configure-pages@v5
+      - name: Verify and prepare allowlisted runtime
+        shell: python
+        run: |
+          import hashlib, json, pathlib, shutil, subprocess
+          names = ["index.html", "styles.css", "data.js", "reports.js", "workflows.js", "guangdong.js", "guangdong-pages.js", "coordination.js", "coordination-pages.js", "platform.js", "guide.js", "guide-window.js", "app.js"]
+          metadata = {"README.md", ".nojekyll", "release.json", ".github/workflows/pages.yml"}
+          tracked = set(subprocess.check_output(["git", "ls-files"], text=True).splitlines())
+          if tracked != set(names) | metadata:
+              raise SystemExit("Unexpected repository files")
+          release = json.loads(pathlib.Path("release.json").read_text())
+          if set(release["files"]) != set(names):
+              raise SystemExit("Manifest differs from runtime allowlist")
+          pathlib.Path("site").mkdir()
+          for name in names:
+              data = pathlib.Path(name).read_bytes()
+              if hashlib.sha256(data).hexdigest() != release["files"][name]:
+                  raise SystemExit("Hash mismatch: " + name)
+              shutil.copyfile(name, pathlib.Path("site") / name)
+          for name in ["release.json", ".nojekyll"]:
+              shutil.copyfile(name, pathlib.Path("site") / name)
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - name: Deploy Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

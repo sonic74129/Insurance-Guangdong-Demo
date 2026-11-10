@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "54bb8aa042c5a58c0ab0c3705917cc5580f3402a",
+  "files": {
+    "index.html": "bf9f3b62d6abeea2bf9bad5c421ac61e4aa41842f8ce86e71f199236f0dc876b",
+    "styles.css": "e1adf292e2518a9e31289f2cce0ff0f36c892a87d97eb21464f9bf8ef8a00800",
+    "data.js": "8d5c033732f8d16729edea5d51de763b63673fb89e49590ea23cceb29644b608",
+    "reports.js": "7c528efb26dcea244cfa2aa5feabff38aaca130386aa59f8371ed5e96b347984",
+    "workflows.js": "5a050e14e586f1c51aa757a2f2683475cb2b8ff68ccefe2b164f0a6f16ea4f34",
+    "guangdong.js": "382da70b918646981294bdc28967fa9a3a1918bbdb622edc8722b3baf5037be2",
+    "guangdong-pages.js": "7e86d52528edbb720877d413ac82297d478d2141a295a8468523a4429c312f50",
+    "coordination.js": "a62764f21dbaac92a3b46fced01361b869e8230bd12ab74b5bacd1f17e958e7b",
+    "coordination-pages.js": "36de1e6687806f158fa6f8b281af955ed06857e11bff14cdfad725eed0d637f5",
+    "platform.js": "7abc75d363efa7a8cbad31960b30002e02807aeef625eb4bf5bfb6168f51dbe8",
+    "guide.js": "6d0a072207285887131802f4ea569d279d13d42feca6bae84d2811429594969f",
+    "guide-window.js": "e11e91f81e356bc7e281be8bc1b56d0e908428c655b45416ac52585268e0d370",
+    "app.js": "191e458704c0375ccb2367a417681ef4230a88c93d162a160fdffd8ede69a5f8"
+  }
+}
