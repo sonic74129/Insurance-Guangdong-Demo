@@ -875,12 +875,27 @@
   }
 
   function renderChart(spec) {
-    if (spec.type === "line") return lineChart(spec.data, spec.series, spec);
-    if (spec.type === "donut") return donutChart(spec.data, spec);
-    if (spec.type === "funnel") return funnelChart(spec.data, spec);
-    if (spec.type === "heatmap") return heatmapChart(spec.data, spec);
-    if (spec.type === "ranking") return rankingChart(spec.data, spec);
-    return barChart(spec.data, spec);
+    const renderers = { line: () => lineChart(spec.data, spec.series, spec), donut: () => donutChart(spec.data, spec),
+      funnel: () => funnelChart(spec.data, spec), heatmap: () => heatmapChart(spec.data, spec),
+      ranking: () => rankingChart(spec.data, spec) };
+    const chart = renderers[spec.type] ? renderers[spec.type]() : barChart(spec.data, spec);
+    const formatValue = spec.valueFormatter || (value => `${number(value, spec.decimals || 0)}${spec.suffix || ""}`);
+    const headers = spec.type === "line" ? ["期间", ...spec.series.map(series => series.label)]
+      : spec.type === "heatmap" ? ["地区／行业", "覆盖率", "覆盖／总数"] : ["项目", "数值", "说明"];
+    const rows = spec.type === "heatmap" ? spec.data.rows.flatMap(row => row.cells.map(cell => ({
+      key: `${cell.regionId}|${cell.industryId}`,
+      values: [`${row.label}／${spec.data.columns.find(column => column.id === cell.industryId)?.label || cell.industryId}`,
+        cell.total ? percent(cell.value) : "无数据", `${cell.covered}／${cell.total}`],
+    }))) : spec.data.map(row => ({
+      key: row.id || row.label,
+      values: spec.type === "line" ? [row.label, ...spec.series.map(series => number(row[series.key]))]
+        : [row.label, formatValue(row.value), row.meta || ""],
+    }));
+    return `${chart}<details class="chart-values no-print"><summary>查看图表数据与明细</summary><div class="table-scroll"><table class="data-table">
+      <thead><tr>${headers.map(label => `<th>${escapeHtml(label)}</th>`).join("")}${spec.drill ? "<th>明细</th>" : ""}</tr></thead>
+      <tbody>${rows.map(row => `<tr>${row.values.map(value => `<td>${escapeHtml(value)}</td>`).join("")}
+      ${spec.drill ? `<td><button class="btn btn-quiet" data-drill="${escapeHtml(spec.drill)}" data-key="${escapeHtml(row.key)}">查看关联明细</button></td>` : ""}</tr>`).join("")}</tbody>
+      </table></div></details>`;
   }
 
   function brief(db, filtersInput = {}) {

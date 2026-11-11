@@ -11,13 +11,8 @@
   const table = (headers, rows) => `<div class="table-scroll"><table class="data-table"><thead><tr>${headers.map(x => `<th>${e(x)}</th>`).join("")}</tr></thead><tbody>${rows.length ? rows.map(row => `<tr>${row.map(x => `<td>${x}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${headers.length}"><p class="co-muted">当前范围尚无记录。请按主故事操作。</p></td></tr>`}</tbody></table></div>`;
   const note = text => `<p class="co-note">${e(text)}</p>`;
   const entity = (db, collection, id) => find(db[collection], id)?.name || id;
-  const tabs = [["overview", "履责总览", "总"], ["risk", "地区风险分析", "险"], ["budgets", "费用与服务包", "费"], ["plans", "既有计划", "计"], ["standards", "标准模板", "标"], ["tasks", "任务与报告", "巡"], ["outcomes", "验收与成果", "验"]];
   function menus(a) {
-    const allowed = a.role === "regulator" ? tabs.map(([id]) => id).filter(id => id !== "plans")
-      : a.role === "service" ? ["overview", "standards", "plans", "tasks"]
-        : a.role === "insurer" ? ["overview", "budgets", "tasks"] : ["overview", "standards", "tasks"];
-    return tabs.filter(([id]) => allowed.includes(id))
-      .map(([id, label, icon]) => ({ path: `/${a.role}/co-${id}`, label, icon }));
+    return global.AZXPlatform.featuresFor(a, "inspection");
   }
   function riskAnalysisPage(db, a, query) {
     if (a.role !== "regulator") return panel("地区风险分析", note("仅统筹监管员可查看跨地区汇总；请使用对应账号登录。"));
@@ -87,7 +82,7 @@
       `当前展示 ${selected.projects.length} 项计划、${selected.submittedReports} 个提交版本；已接收覆盖不等于已审核或正式风险结论。`);
     return `<div class="co-risk-analysis">${header}${detail}</div>`;
   }
-  function title(path) { return tabs.find(([id]) => path.endsWith(`co-${id}`))?.[1] || "事故预防统筹"; }
+  function title(path) { return global.AZXPlatform.features.find(feature => feature.path === path)?.label || "事故预防统筹"; }
   const pathFor = (a, tab) => `/${a.role}/co-${tab}`;
   function evidence(label = "现场证据") {
     return `<details class="co-evidence"><summary>查看${e(label)}（合成）</summary><figure><svg viewBox="0 0 320 140" role="img" aria-label="合成现场示意图，非真实照片"><rect x="2" y="2" width="316" height="136" rx="12" class="co-svg-bg"/><path d="M32 110V30H288V110M120 110V50H200V110" class="co-svg-line"/><path d="M142 100V72H178V100" class="co-svg-accent"/><text x="160" y="128" text-anchor="middle" class="co-svg-text">DEMO · 合成证据，非现场认证</text></svg><figcaption>${e(label)}：仅说明证据查看及审核交互。无真实照片、定位或签章。</figcaption></figure></details>`;

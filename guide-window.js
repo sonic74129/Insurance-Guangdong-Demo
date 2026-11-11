@@ -6,6 +6,7 @@
   const launcher = document.querySelector(".guide-launcher");
   const preferenceKey = "anezx-guide-window-preferences-v1";
   const readingKey = "anezx-guide-reading-v1";
+  const wideLayout = global.matchMedia("(min-width: 1180px)");
   const reading = { scroll: 0, chapters: new Map(), step: "开始阅读" };
   let geometry = null;
   let expanded = false;
@@ -23,10 +24,12 @@
     return { width, height, x: Math.max(12, Math.min(value.x, global.innerWidth - width - 12)), y: Math.max(12, Math.min(value.y, global.innerHeight - height - 12)) };
   }
   function apply() {
+    if (!wideLayout.matches) return;
     geometry = clamp(geometry || defaults());
     Object.assign(panel.style, { width: `${geometry.width}px`, height: `${geometry.height}px`, left: `${geometry.x}px`, top: `${geometry.y}px` });
   }
   function persist() {
+    if (!wideLayout.matches) return;
     try { global.localStorage.setItem(preferenceKey, JSON.stringify(geometry)); }
     catch (error) { console.warn("说明窗口偏好未保存。", error); }
   }
@@ -120,6 +123,7 @@
   header.tabIndex = 0;
   header.setAttribute("aria-label", "移动说明窗口：使用方向键");
   function start(event) {
+    if (!wideLayout.matches) return;
     if (expanded || event.button !== 0 || event.target.closest("[data-action], [data-guide-size], [data-guide-default]")) return;
     const handle = event.target.closest("[data-guide-resize]");
     if (!handle && !event.target.closest(".guide-header")) return;
@@ -155,6 +159,7 @@
   panel.addEventListener("pointerup", finish);
   panel.addEventListener("pointercancel", finish);
   panel.addEventListener("keydown", event => {
+    if (!wideLayout.matches) return;
     if (expanded) return;
     const handle = event.target.closest("[data-guide-resize]");
     if (event.target !== header && !handle) return;
@@ -174,6 +179,7 @@
     persist();
   });
   global.addEventListener("resize", () => {
+    if (!wideLayout.matches) return;
     if (restoreGeometry) restoreGeometry = clamp(restoreGeometry);
     if (expanded) geometry = { width: global.innerWidth - 24, height: global.innerHeight - 24, x: 12, y: 12 };
     apply();

@@ -81,6 +81,7 @@
 </head>
 <body>
   <div id="app" aria-live="polite"></div>
+  <section id="featureDirectory" class="feature-directory" role="dialog" aria-modal="true" aria-labelledby="directoryTitle" hidden></section>
   <div class="guide-widget" id="guideRoot">
     <section class="guide-panel" id="guidePanel" aria-labelledby="guideTitle" hidden>
       <header class="guide-header">
@@ -89,6 +90,7 @@
           <span id="guideMode"></span>
         </div>
         <div class="guide-window-actions">
+          <button type="button" class="btn guide-return" data-action="toggleGuide">返回原页面</button>
           <button type="button" class="btn btn-quiet" data-guide-default aria-label="恢复说明窗口默认大小和位置" title="恢复默认大小和位置">恢复默认大小</button>
           <button type="button" class="btn btn-icon" data-guide-size aria-label="最大化说明窗口" title="最大化">□</button>
           <button type="button" class="btn btn-icon guide-close" data-action="toggleGuide" aria-label="收起使用说明" title="最小化到右下角">—</button>

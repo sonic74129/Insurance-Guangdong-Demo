@@ -11,6 +11,10 @@
   const loadResult = contexts.insurance;
   const session = Platform.readSession();
   const CO_DRAFT_STORAGE_KEY = "anezx-coordination-field-drafts-v1";
+  const compactLayout = global.matchMedia("(max-width: 1179px)");
+  let utilityReturn = null;
+  let lastBusinessFocus = null;
+  let dialogReturnFocus = null;
 
   function readCoDraftStore() {
     try {
@@ -81,46 +85,7 @@
     enterprise: "/enterprise/home",
   };
 
-  const MENUS = {
-    regulator: [
-      { path: "/regulator/dashboard", icon: "总", label: "监管驾驶舱" },
-      { path: "/regulator/enterprises", icon: "企", label: "应保企业底数" },
-      { path: "/regulator/connections", icon: "接", label: "保司数据接入" },
-      { path: "/regulator/quality", icon: "质", label: "数据质量治理" },
-      { path: "/regulator/reporting", icon: "送", label: "全国报送台账" },
-      { path: "/regulator/inspection", icon: "查", label: "保司资料检查" },
-      { path: "/regulator/coordination", icon: "协", label: "省市工作协同" },
-      { path: "/regulator/gd-alerts", icon: "警", label: "理赔与服务预警" },
-      { path: "/regulator/monthly", icon: "月", label: "运营月报" },
-      { path: "/regulator/analytics", icon: "统", label: "统计分析" },
-      { path: "/regulator/alerts", icon: "预", label: "待办与预警" },
-      { path: "/regulator/assessments", icon: "考", label: "机构考核" },
-      { path: "/regulator/brief", icon: "报", label: "监管简报" },
-    ],
-    insurer: [
-      { path: "/insurer/dashboard", icon: "首", label: "保险工作台" },
-      { path: "/insurer/quality", icon: "质", label: "数据质量整改" },
-      { path: "/insurer/inspection", icon: "查", label: "保司资料检查反馈" },
-      { path: "/insurer/applications", icon: "核", label: "投保核保" },
-      { path: "/insurer/policies", icon: "单", label: "保单与服务" },
-      { path: "/insurer/claims", icon: "赔", label: "报案理赔" },
-    ],
-    service: [
-      { path: "/service/dashboard", icon: "首", label: "服务工作台" },
-      { path: "/service/tasks", icon: "任", label: "服务任务" },
-      { path: "/service/hazards", icon: "患", label: "隐患与复查" },
-      { path: "/service/archive", icon: "档", label: "回访与归档" },
-    ],
-    enterprise: [
-      { path: "/enterprise/dashboard", icon: "首", label: "企业首页" },
-      { path: "/enterprise/market", icon: "险", label: "产品与投保" },
-      { path: "/enterprise/policies", icon: "单", label: "保单与服务" },
-      { path: "/enterprise/hazards", icon: "改", label: "隐患整改" },
-      { path: "/enterprise/claims", icon: "赔", label: "报案理赔" },
-    ],
-  };
-
-  const PAGE_TITLES = {
+  const PAGE_DESCRIPTIONS = {
     "/regulator/enterprises": ["应保企业底数", "广东高危行业样本企业"],
     "/regulator/connections": ["保司数据接入", "来源与批次"],
     "/regulator/quality": ["数据质量治理", "校验、整改与复验"],
@@ -151,6 +116,10 @@
     "/enterprise/claims": ["报案理赔", "使用有效保单报案并跟踪进度"],
     "/demo-control": ["演示设置", "恢复固定场景和查看演示环境状态"],
   };
+  const PAGE_TITLES = Object.fromEntries(Platform.features.map(feature => [
+    feature.path, [feature.label, PAGE_DESCRIPTIONS[feature.path]?.[1] || "企业现场巡检 · 独立合成样本"],
+  ]));
+  PAGE_TITLES["/demo-control"] = PAGE_DESCRIPTIONS["/demo-control"];
 
   function saveSessionAccount(accountId) {
     Platform.saveSession(Platform.identityFor(accountId));
@@ -178,7 +147,100 @@
     const legacy = new URLSearchParams(global.location.search).get("mode") === "coordination";
     const hash = global.location.hash.replace(/^#/, "") || (state.identity ? ROLE_HOME[state.identity.role] : legacy ? "/login" : "/portal");
     const [path, queryString = ""] = hash.split("?");
-    return { path, query: new URLSearchParams(queryString) };
+    const query = new URLSearchParams(queryString);
+    const ui = query.get("ui"), chapter = query.get("chapter");
+    query.delete("ui"); query.delete("chapter");
+    return { path, query, ui, chapter };
+  }
+
+  function businessHash() {
+    const { path, query } = route();
+    return `${path}${query.size ? `?${query}` : ""}`;
+  }
+
+  function setUtility(view, chapter = "") {
+    const current = route();
+    if (!view && current.ui) {
+      if (global.history.state?.azxUtility) { global.history.back(); return; }
+      global.history.replaceState(null, "", `#${businessHash()}`);
+    } else if (view) {
+      const query = new URLSearchParams(current.query);
+      query.set("ui", view);
+      if (chapter) query.set("chapter", chapter);
+      const hash = `#${current.path}?${query}`;
+      if (current.ui) global.history.replaceState(global.history.state, "", hash);
+      else global.history.pushState({ azxUtility: true }, "", hash);
+    }
+    syncUtility();
+  }
+
+  function syncUtility() {
+    const { ui, chapter } = route();
+    if (ui && !utilityReturn) {
+      const element = lastBusinessFocus?.isConnected ? lastBusinessFocus : null;
+      utilityReturn = {
+        hash: businessHash(), x: global.scrollX, y: global.scrollY, element,
+        start: element?.selectionStart, end: element?.selectionEnd,
+      };
+    }
+    state.guideOpen = ui === "help";
+    const directory = document.getElementById("featureDirectory");
+    directory.hidden = ui !== "features";
+    if (!directory.hidden) {
+      directory.innerHTML = `<header><h1 id="directoryTitle">全部功能</h1><button class="btn" data-action="closeUtility">返回原页面</button></header>
+        <p>仅列出当前身份全部获授权功能；保险与现场巡检独立存档。</p>
+        ${state.identity ? menuGroups(state.identity).map(group => `<section><h2>${Reports.escapeHtml(group.label)}</h2>
+        ${group.items.map(item => `<a href="#${item.path}">${Reports.escapeHtml(item.label)}<span aria-hidden="true"> →</span></a>`).join("")}</section>`).join("")
+        : '<a class="btn" href="#/login">选择演示账号</a>'}`;
+    }
+    renderGuide();
+    applyUtilityLayout();
+    if (chapter && state.guideOpen) {
+      const section = [...document.querySelectorAll("[data-guide-chapter]")].find(element => element.dataset.guideChapter === chapter);
+      if (section) { section.open = true; section.scrollIntoView({ block: "start" }); }
+    }
+    const active = ui === "features" ? directory : state.guideOpen && compactLayout.matches ? document.getElementById("guidePanel") : null;
+    if (active) {
+      active.querySelector("button, a, summary")?.focus({ preventScroll: true });
+    } else if (utilityReturn && !ui) {
+      const restore = utilityReturn;
+      utilityReturn = null;
+      if (restore.hash === businessHash()) {
+        global.scrollTo(restore.x, restore.y);
+        if (restore.element?.isConnected) {
+          restore.element.focus({ preventScroll: true });
+          if (typeof restore.element.setSelectionRange === "function" && restore.start !== null) {
+            try { restore.element.setSelectionRange(restore.start, restore.end); }
+            catch (error) { console.debug("此字段不支持选区恢复。", error); }
+          }
+          const rect = restore.element.getBoundingClientRect();
+          if (rect.top < 0 || rect.bottom > global.innerHeight - 80) restore.element.scrollIntoView({ block: "center" });
+        }
+      }
+    }
+  }
+
+  function applyUtilityLayout() {
+    const fullHelp = state.guideOpen && compactLayout.matches;
+    const blocking = Boolean(document.querySelector("#modalRoot [role=dialog], #drawerRoot [role=dialog]"));
+    const covered = blocking || fullHelp || !document.getElementById("featureDirectory").hidden;
+    const app = document.getElementById("app");
+    app.inert = covered;
+    if (covered) app.setAttribute("aria-hidden", "true");
+    else app.removeAttribute("aria-hidden");
+    document.body.classList.toggle("utility-open", covered);
+    document.getElementById("guideRoot").inert = blocking;
+    document.getElementById("drawerRoot").inert = Boolean(document.querySelector("#modalRoot [role=dialog]"));
+    const panel = document.getElementById("guidePanel");
+    if (fullHelp) { panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true"); }
+    else { panel.removeAttribute("role"); panel.removeAttribute("aria-modal"); }
+    document.getElementById("guideRoot").hidden = !document.getElementById("featureDirectory").hidden;
+  }
+
+  function syncVisibleArea() {
+    const editing = document.activeElement?.matches("input:not([type=checkbox]):not([type=radio]), textarea, select");
+    document.body.classList.toggle("editing-constrained", Boolean(compactLayout.matches && editing
+      && global.visualViewport && global.visualViewport.height < 480));
   }
 
   function navigate(path) {
@@ -199,6 +261,7 @@
     const { store, warning } = readCoDraftStore();
     if (warning) {
       state.coDirty = true;
+      updateDraftStatus(false);
       if (!state.coDraftStorageErrorShown) {
         state.coDraftStorageErrorShown = true;
         showToast(warning, true);
@@ -212,17 +275,26 @@
       if (!Object.keys(store.accounts[state.accountId]).length) delete store.accounts[state.accountId];
       global.localStorage.setItem(CO_DRAFT_STORAGE_KEY, JSON.stringify(store));
       state.coDirty = false;
+      updateDraftStatus(true);
       state.coDraftStorageErrorShown = false;
       return true;
     } catch (error) {
       console.error("统筹巡检草稿保存失败。", error);
       state.coDirty = true;
+      updateDraftStatus(false);
       if (!state.coDraftStorageErrorShown) {
         state.coDraftStorageErrorShown = true;
         showToast(`草稿未保存：${error.message}。当前页面输入仍保留，请勿刷新。`, true);
       }
       return false;
     }
+  }
+
+  function updateDraftStatus(saved) {
+    const status = document.querySelector(".draft-status");
+    if (!status) return;
+    status.textContent = saved ? "草稿已保存在本浏览器，不跨设备同步" : "草稿未保存，请勿刷新；当前输入仍在本页";
+    status.classList.toggle("unsaved", !saved);
   }
 
   function renderGuide() {
@@ -290,14 +362,118 @@
         </ul>
       </section>
       ${global.AZXDemoGuide.render()}
-      <p class="guide-hint">说明书不会锁定页面；点面板以外区域可继续操作。若挡住内容，按右上角「−」收起，再点右下角「使用说明」打开。</p>
+      <p class="guide-hint">宽屏可边看边操作并拖动缩放说明窗口；手机为整页说明，点「返回原页面」继续原任务，不会清除未提交输入。</p>
     `;
     global.AZXGuideWindow.restore();
+    applyUtilityLayout();
     if (state.guideTargetSelector) {
       const targetSelector = state.guideTargetSelector;
       state.guideTargetSelector = null;
       global.setTimeout(() => highlightGuideTarget(targetSelector), 100);
     }
+  }
+
+  function prepareResponsiveContent() {
+    document.querySelectorAll(".data-table").forEach(table => {
+      table.setAttribute("role", "table");
+      table.querySelectorAll("tr").forEach(row => row.setAttribute("role", "row"));
+      const headers = [...table.querySelectorAll("thead th")].map(header => {
+        header.scope = "col";
+        header.setAttribute("role", "columnheader");
+        return header.textContent;
+      });
+      table.querySelectorAll("tbody tr").forEach(row => {
+        [...row.children].forEach((cell, index) => {
+          cell.setAttribute("role", "cell");
+          if (cell.colSpan > 1 || cell.querySelector(":scope > .mobile-cell-label")) return;
+          const label = document.createElement("span");
+          label.className = "mobile-cell-label";
+          label.setAttribute("aria-hidden", "true");
+          label.textContent = headers[index] || "";
+          const value = document.createElement("div");
+          value.className = "cell-value";
+          value.append(...cell.childNodes);
+          cell.append(label, value);
+        });
+      });
+    });
+    document.querySelectorAll("#co-report-form").forEach(form => {
+      if (form.querySelector(".form-sections")) return;
+      const sections = [...form.querySelectorAll(":scope > fieldset")];
+      const nav = document.createElement("nav");
+      nav.className = "form-sections no-print";
+      nav.setAttribute("aria-label", "报告填写步骤");
+      const status = document.createElement("p");
+      status.className = "draft-status";
+      status.setAttribute("role", "status");
+      status.textContent = state.coDirty ? "草稿未保存，请勿刷新" : "填写时自动保存到本浏览器，不跨设备同步";
+      nav.append(status);
+      sections.forEach((section, index) => {
+        section.id = `report-section-${index}`;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "btn btn-quiet";
+        button.textContent = index ? `检查项 ${index}` : "基本信息";
+        button.dataset.formSection = String(index);
+        nav.append(button);
+        const actions = document.createElement("div");
+        actions.className = "section-actions compact-control no-print";
+        for (const [offset, label] of [[-1, "上一项"], [1, "下一项"]]) {
+          if (!sections[index + offset]) continue;
+          const step = document.createElement("button");
+          step.type = "button"; step.className = "btn";
+          step.dataset.formSection = String(index + offset); step.textContent = label;
+          actions.append(step);
+        }
+        const help = document.createElement("button");
+        help.type = "button"; help.className = "btn btn-quiet";
+        help.dataset.action = "fieldHelp"; help.textContent = "本项填写说明";
+        actions.append(help); section.append(actions);
+      });
+      form.prepend(nav);
+    });
+    document.querySelectorAll(".filter-bar, .gd-filter, .co-filter").forEach(filter => {
+      if (filter.dataset.filterReady || filter.querySelectorAll("select").length < 2) return;
+      filter.dataset.filterReady = "true";
+      const open = document.createElement("button");
+      open.type = "button"; open.className = "btn compact-control filter-opener";
+      open.dataset.action = "openFilters"; open.textContent = "筛选当前列表";
+      filter.before(open);
+    });
+  }
+
+  function openFilters(filter) {
+    const controls = [...filter.querySelectorAll("select")];
+    dialogReturnFocus = document.activeElement;
+    document.getElementById("modalRoot").innerHTML = `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="filterTitle">
+      <header class="modal-head"><h2 id="filterTitle">筛选当前列表</h2><button class="btn" data-action="closeModal">取消</button></header>
+      <form id="responsiveFilters"><div class="modal-body">${controls.map((control, index) => `<label>${Reports.escapeHtml(control.labels?.[0]?.textContent || control.closest("label")?.textContent.split("\n")[0] || "筛选条件")}
+      <select name="filter-${index}">${[...control.options].map(option => `<option value="${Reports.escapeHtml(option.value)}"${option.selected ? " selected" : ""}>${Reports.escapeHtml(option.textContent)}</option>`).join("")}</select></label>`).join("")}</div>
+      <footer class="modal-footer"><button type="button" class="btn" data-action="clearFilters">清空条件</button><button type="submit" class="btn btn-primary">应用筛选</button></footer></form></section></div>`;
+    const form = document.getElementById("responsiveFilters");
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      const query = route().query;
+      controls.forEach((control, index) => {
+        const value = form.elements.namedItem(`filter-${index}`).value;
+        if (control.dataset.filter) state.filters[control.dataset.filter] = value;
+        else if (control.dataset.marketFilter) state.marketFilters[control.dataset.marketFilter] = value;
+        else if (control.dataset.gdFilter) {
+          if (value) query.set(control.dataset.gdFilter, value);
+          else query.delete(control.dataset.gdFilter);
+          query.delete("firm");
+        } else if (control.dataset.coFilter) {
+          if (value) query.set(control.dataset.coFilter, value);
+          else query.delete(control.dataset.coFilter);
+        }
+      });
+      closeModal();
+      const hash = `${route().path}${query.size ? `?${query}` : ""}`;
+      if (hash !== businessHash()) navigate(hash);
+      else render();
+    });
+    form.querySelector("select")?.focus();
+    applyUtilityLayout();
   }
 
   function clearGuideTarget() {
@@ -629,7 +805,7 @@
             </div>
             <button type="button" class="btn btn-primary" data-action="login">进入工作台</button>
           </div>
-          <p class="login-hint">统一演示密码：demo123。点击右下角「使用说明」查看操作路线。</p>
+          <p class="login-hint">统一演示密码：demo123。「使用说明」可查看操作路线；登录后窄屏使用底部导航，桌面使用左侧菜单。</p>
         </section>
       </div>
     `;
@@ -643,34 +819,14 @@
   }
 
   function menuGroups(identity) {
-    if (!identity) return [];
-    const insuranceActor = Platform.actorFor(identity, "insurance", contexts.insurance.db);
-    const inspectionActor = Platform.actorFor(identity, "inspection", contexts.inspection.db);
-    const insuranceMenu = insuranceActor ? (MENUS[identity.role] || []).filter(item => insuranceActor.level !== "city"
-      || ["/regulator/dashboard", "/regulator/enterprises", "/regulator/coordination"].includes(item.path)) : [];
-    const insuranceGroups = identity.role === "regulator"
-      ? [
-        ["监管概览", ["dashboard"]],
-        ["企业与保险数据", ["enterprises", "connections", "quality", "reporting"]],
-        ["保司资料检查与省市协同", ["inspection", "coordination"]],
-        ["统计、预警与月报", ["gd-alerts", "monthly", "analytics", "alerts", "assessments", "brief"]],
-      ]
-      : identity.role === "insurer"
-        ? [["保险业务", ["dashboard", "applications", "policies", "claims"]], ["保司资料检查与监管反馈", ["quality", "inspection"]]]
-        : [[identity.role === "service" ? "原保险服务与隐患闭环" : "保险业务与原服务记录", insuranceMenu.map(item => item.path.split("/").at(-1))]];
-    const result = insuranceGroups.map(([label, pages]) => ({ label, business: "insurance", items: insuranceMenu.filter(item => pages.includes(item.path.split("/").at(-1))) }));
-    if (inspectionActor) {
-      const menu = global.CoordinationPages.menus(inspectionActor);
-      result.push({ label: "企业现场巡检与报告", business: "inspection", items: menu.filter(item => !/co-(budgets|outcomes)$/.test(item.path)) });
-      result.push({ label: "履约、费用与成果", business: "inspection", items: menu.filter(item => /co-(budgets|outcomes)$/.test(item.path)) });
-    }
-    return result.filter(group => group.items.length);
+    return Platform.menuGroups(identity, contexts);
   }
 
   function renderUnifiedHome() {
     const identity = state.identity;
     return workbenchLayout(identity, ROLE_HOME[identity.role], `
       ${pageHeading("综合工作台", "按业务分组显示本演示身份的全部获授权功能；各业务样本独立，不合计未知分母")}
+      <div class="mobile-intro"><strong>${Reports.escapeHtml(identity.name)}</strong><p>完整功能 · 本浏览器保存 · 不跨设备同步</p><button class="btn btn-primary" data-action="showFeatures">查看全部功能</button></div>
       <p class="co-note">统一登录授予的是明确列出的演示业务身份，不代表两份历史中的机构、企业或同号记录是同一实体。未确认的跨业务关联保持独立。</p>
       <div class="content-grid two">
         ${menuGroups(identity).map(group => {
@@ -714,28 +870,34 @@
         </aside>
         <section class="workspace">
           <header class="workspace-header">
+            <button type="button" class="btn compact-control" data-nav="${ROLE_HOME[account.role]}" aria-label="返回综合工作台">返回</button>
             <div class="workspace-title"><div class="breadcrumb">首页 / ${ROLE_LABELS[account.role]} / ${Reports.escapeHtml(title)}</div><h1>${Reports.escapeHtml(title)}</h1></div>
             <div class="header-actions">
-              ${account.role === "regulator" ? `<button type="button" class="btn btn-quiet" data-action="togglePresentation">${state.presentation ? "退出投屏" : "驾驶舱投屏"}</button>` : ""}
+              ${account.role === "regulator" ? `<button type="button" class="btn btn-quiet presentation-toggle" data-action="togglePresentation">${state.presentation ? "退出投屏" : "驾驶舱投屏"}</button>` : ""}
               ${currentAccount() ? `<button type="button" class="btn btn-icon notification-button" data-action="showNotifications" aria-label="当前业务通知">信${notifications.filter(item => !item.read).length ? `<span class="notification-count">${notifications.filter(item => !item.read).length}</span>` : ""}</button>` : ""}
               <div class="user-menu">
-                <button type="button" class="user-trigger" data-action="toggleUserMenu">
+                <button type="button" class="user-trigger" data-action="toggleUserMenu" aria-expanded="${state.userMenuOpen}" aria-label="账号：${Reports.escapeHtml(state.identity.name)}">
                   <span class="avatar">${Reports.escapeHtml(account.name.slice(0, 1))}</span>
                   <span class="user-copy"><strong>${Reports.escapeHtml(state.identity.name)}</strong><span>${Reports.escapeHtml(account.organization || "综合工作台 · 明确业务授权")}</span></span>
                 </button>
-                ${state.userMenuOpen ? `
-                  <div class="dropdown">
+                  <div class="dropdown"${state.userMenuOpen ? "" : " hidden"}>
+                    ${account.role === "regulator" ? `<button type="button" class="compact-control" data-action="togglePresentation">${state.presentation ? "退出投屏" : "驾驶舱投屏"}</button>` : ""}
                     <a href="#/demo-control?business=${business}">演示设置</a>
                     <a href="#/portal">公共门户</a>
                     <button type="button" data-action="logout">退出登录</button>
                   </div>
-                ` : ""}
               </div>
             </div>
           </header>
           <main class="page">
             ${content || `${pageHeading(title, description)}${emptyState("页面建设中", "该页面尚未完成。")}`}
           </main>
+          <button type="button" class="btn presentation-exit no-print" data-action="togglePresentation">退出投屏</button>
+          <nav class="mobile-navigation no-print" aria-label="主导航">
+            <a href="#${ROLE_HOME[account.role]}"${home ? ' aria-current="page"' : ""}>工作台</a>
+            <button type="button" data-action="showFeatures">全部功能</button>
+            <button type="button" data-action="toggleGuide">使用说明</button>
+          </nav>
         </section>
       </div>
     `;
@@ -1324,6 +1486,7 @@
     };
     document.title = publicTitles[path] || `${path.endsWith("/home") ? "综合工作台" : coMode ? global.CoordinationPages.title(path) : PAGE_TITLES[path]?.[0] || "业务工作台"} - 安责险信息管理平台`;
     renderGuide();
+    prepareResponsiveContent();
   }
 
   function showToast(message, error = false) {
@@ -1338,9 +1501,12 @@
   function closeDrawer() {
     state.currentDetail = null;
     document.getElementById("drawerRoot").innerHTML = "";
+    applyUtilityLayout();
+    dialogReturnFocus?.focus({ preventScroll: true });
   }
 
   function openDrawer(detailData, contextText) {
+    dialogReturnFocus = document.activeElement;
     state.currentDetail = detailData;
     document.getElementById("drawerRoot").innerHTML = `
       <div class="drawer-backdrop" data-action="closeDrawer"></div>
@@ -1356,17 +1522,23 @@
         </div>
       </aside>
     `;
+    prepareResponsiveContent();
+    document.querySelector("#drawerRoot button")?.focus({ preventScroll: true });
+    applyUtilityLayout();
   }
 
   function closeModal() {
     state.pendingScenario = null;
     document.getElementById("modalRoot").innerHTML = "";
+    applyUtilityLayout();
+    dialogReturnFocus?.focus({ preventScroll: true });
   }
 
   function openScenarioConfirmation(scenarioId) {
     const scenario = Data.SCENARIOS.find(item => item.id === scenarioId);
     if (!scenario) return;
     state.pendingScenario = scenario.id;
+    dialogReturnFocus = document.activeElement;
     document.getElementById("modalRoot").innerHTML = `
       <div class="modal-backdrop" data-action="closeModal">
         <section class="modal" role="dialog" aria-modal="true" aria-labelledby="scenarioTitle">
@@ -1376,6 +1548,8 @@
         </section>
       </div>
     `;
+    document.querySelector('#modalRoot [data-action="closeModal"]')?.focus({ preventScroll: true });
+    applyUtilityLayout();
   }
 
   function showNotifications() {
@@ -1451,11 +1625,12 @@
     if (document.querySelector(".guide-target-highlight") && !event.target.closest(".guide-target-tip, [data-guide-nav]")) clearGuideTarget();
     const anchor = event.target.closest('a[href^="#"]');
     if (anchor && !discardCoDraft()) { event.preventDefault(); return; }
-    const target = event.target.closest("[data-action], [data-nav], [data-guide-nav], [data-account], [data-workflow], [data-drill], [data-gd], [data-co]");
+    const target = event.target.closest("[data-action], [data-nav], [data-guide-nav], [data-account], [data-workflow], [data-drill], [data-gd], [data-co], [data-form-section]");
     if (!target) {
       if (state.userMenuOpen && !event.target.closest(".user-menu")) {
         state.userMenuOpen = false;
-        render();
+        document.querySelector(".user-menu .dropdown").hidden = true;
+        document.querySelector(".user-trigger").setAttribute("aria-expanded", "false");
       }
       return;
     }
@@ -1486,6 +1661,12 @@
 
     if (target.dataset.nav) {
       navigate(target.dataset.nav);
+      return;
+    }
+    if (target.dataset.formSection !== undefined) {
+      const section = document.getElementById(`report-section-${target.dataset.formSection}`);
+      section?.scrollIntoView({ block: "start" });
+      section?.querySelector("input, select, textarea")?.focus({ preventScroll: true });
       return;
     }
     if (target.dataset.account) {
@@ -1522,12 +1703,15 @@
           persistCoDraft(task.id, state.coDrafts[task.id]); render(); return;
         }
         if (action === "previewReport") {
+          dialogReturnFocus = document.activeElement;
           const form = target.closest("form");
           const input = readCoReport(form);
           state.coDrafts[task.id] = input;
           persistCoDraft(task.id, input);
           const html = pages.reportDocument(state.db, task, { ...input, id: "未提交草稿", version: "草稿", status: "未校验／未提交", source: "现场预览", templateId: task.templateId, templateSnapshot: Data.clone(state.db.co.templates.find(x => x.id === task.templateId)), submittedAt: "未提交", submittedBy: account.id }, false);
           document.getElementById("modalRoot").innerHTML = `<div class="modal-backdrop"><section class="modal co-preview-modal" role="dialog" aria-modal="true" aria-label="巡检报告预览"><header class="modal-head"><h2>报告草稿预览</h2><button class="btn" data-action="closeModal">关闭</button></header><div class="modal-body">${html}</div></section></div>`;
+          document.querySelector("#modalRoot button")?.focus({ preventScroll: true });
+          applyUtilityLayout();
         } else if (report) {
           let root = document.getElementById("coReportPrint");
           if (!root) { root = document.createElement("section"); root.id = "coReportPrint"; document.body.appendChild(root); }
@@ -1596,12 +1780,24 @@
     }
 
     const action = target.dataset.action;
+    if (action === "openFilters") { openFilters(target.nextElementSibling); return; }
+    if (action === "clearFilters") {
+      document.querySelectorAll("#responsiveFilters select").forEach(select => { select.selectedIndex = 0; });
+      return;
+    }
+    if (action === "fieldHelp") { setUtility("help", "inspection-report"); return; }
+    if (action === "showFeatures") { setUtility("features"); return; }
+    if (action === "closeUtility") { setUtility(null); return; }
     if (action === "dismissGuideTarget") {
       state.guideTargetSelector = null;
       clearGuideTarget();
       return;
     }
     if (action === "toggleGuide") {
+      if (compactLayout.matches || route().ui) {
+        setUtility(state.guideOpen ? null : "help");
+        return;
+      }
       state.guideOpen = !state.guideOpen;
       renderGuide();
       return;
@@ -1644,12 +1840,18 @@
     }
     if (action === "toggleUserMenu") {
       state.userMenuOpen = !state.userMenuOpen;
-      render();
+      target.setAttribute("aria-expanded", String(state.userMenuOpen));
+      target.closest(".user-menu").querySelector(".dropdown").hidden = !state.userMenuOpen;
       return;
     }
     if (action === "togglePresentation") {
       state.presentation = !state.presentation;
-      render();
+      document.body.classList.toggle("presentation", state.presentation);
+      document.querySelectorAll('[data-action="togglePresentation"]').forEach(button => {
+        button.textContent = state.presentation ? "退出投屏" : "驾驶舱投屏";
+      });
+      if (state.presentation) document.querySelector(".presentation-exit")?.focus({ preventScroll: true });
+      else document.querySelector(".user-trigger")?.focus({ preventScroll: true });
       return;
     }
     if (action === "clearFilters") {
@@ -1793,15 +1995,67 @@
     if (state.coDirty || state.formDirty) { event.preventDefault(); event.returnValue = ""; }
   });
   global.addEventListener("hashchange", () => {
+    if (businessHash() === state.renderedHash) { syncUtility(); return; }
     if (!discardCoDraft()) {
       global.history.replaceState(null, "", `#${state.renderedHash}`);
       return;
     }
+    document.getElementById("featureDirectory").hidden = true;
+    if (compactLayout.matches) state.guideOpen = route().ui === "help";
+    utilityReturn = null;
     render();
+  });
+  compactLayout.addEventListener("change", () => {
+    if (compactLayout.matches && state.guideOpen && !route().ui) setUtility("help");
+    else applyUtilityLayout();
+    syncVisibleArea();
+  });
+  global.visualViewport?.addEventListener("resize", syncVisibleArea);
+  document.addEventListener("focusout", () => global.setTimeout(syncVisibleArea, 0));
+  document.addEventListener("focusin", event => {
+    if (event.target.matches("input, select, textarea") && event.target.closest("#app")) lastBusinessFocus = event.target;
+    syncVisibleArea();
+  });
+  document.addEventListener("keydown", event => {
+    const active = document.querySelector("#modalRoot [role=dialog], #drawerRoot [role=dialog]")
+      || (document.body.classList.contains("utility-open")
+        ? !document.getElementById("featureDirectory").hidden ? document.getElementById("featureDirectory") : document.getElementById("guidePanel")
+        : null);
+    if (!active) {
+      if (event.key === "Escape" && state.userMenuOpen) {
+        state.userMenuOpen = false;
+        document.querySelector(".user-menu .dropdown").hidden = true;
+        const trigger = document.querySelector(".user-trigger");
+        trigger.setAttribute("aria-expanded", "false");
+        trigger.focus();
+      }
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (active.closest("#modalRoot")) closeModal();
+      else if (active.closest("#drawerRoot")) closeDrawer();
+      else if (route().ui) setUtility(null);
+      else { state.guideOpen = false; renderGuide(); }
+    } else if (event.key === "Tab") {
+      const focusable = [...active.querySelectorAll("a[href], button, input, select, textarea, summary, [tabindex='0']")]
+        .filter(element => !element.disabled && element.getClientRects().length && !element.closest("[hidden]"));
+      const first = focusable[0], last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      const form = document.querySelector("[data-co-form]");
+      if (form) rememberCoDraft({ target: form });
+      global.AZXGuideWindow.capture();
+    }
   });
   document.addEventListener("click", handleClick);
   document.addEventListener("change", handleChange);
   render();
+  if (route().ui) syncUtility();
 
   if (state.warning) {
     global.setTimeout(() => showToast(state.warning, true), 120);
